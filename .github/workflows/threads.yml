@@ -1,0 +1,36 @@
+name: Post AI news to Threads
+
+on:
+  schedule:
+    - cron: "0 6 * * *"  # 06:00 UTC = 09:00 МСК
+  workflow_dispatch: {}
+
+jobs:
+  build-and-post:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements.txt
+      - name: Preflight (token & perms)
+        env:
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+        run: |
+          python preflight.py
+      - name: Generate thread text
+        run: |
+          python news_to_threads.py > thread.txt
+          echo "Preview:"
+          head -n 60 thread.txt || true
+      - name: Publish to Threads (or DRY_RUN)
+        env:
+          THREADS_USER_ID: ${{ secrets.THREADS_USER_ID }}
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+          MAX_RETRIES: 3
+          RETRY_BASE_SEC: 1.5
+          DRY_RUN: ${{ vars.DRY_RUN }}
+        run: |
+          python post_to_threads.py
